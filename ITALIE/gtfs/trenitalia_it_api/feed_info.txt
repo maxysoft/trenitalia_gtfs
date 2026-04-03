@@ -1,2 +1,2 @@
 feed_publisher_name,feed_publisher_url,feed_lang,feed_start_date,feed_end_date,feed_version
-TrainNomad (données Trenitalia API),https://trainnomad.eu,it,20260329,20260402,20260329
+TrainNomad (données Trenitalia API),https://trainnomad.eu,it,20260403,20260406,20260403
