@@ -564,7 +564,7 @@ function buildGTFS() {
 
   writeCSV(path.join(OUT_DIR, 'routes.txt'), [...routesMap.values()]);
 
-  const trips = [], calendar = [], stopTimes = [], seen = new Set();
+  const trips = [], calendarDates = [], stopTimes = [], seen = new Set();
 
   for (const t of trainMap.values()) {
     trips.push({
@@ -573,12 +573,11 @@ function buildGTFS() {
     });
     if (!seen.has(t.serviceId)) {
       seen.add(t.serviceId);
-      const d = t.day.replace(/-/g, '');
-      calendar.push({
-        service_id: t.serviceId,
-        monday:'0', tuesday:'0', wednesday:'0', thursday:'0',
-        friday:'0', saturday:'0', sunday:'0',
-        start_date: d, end_date: d,
+      // calendar_dates.txt : exception_type=1 = service actif ce jour précis
+      calendarDates.push({
+        service_id:     t.serviceId,
+        date:           t.day.replace(/-/g, ''),
+        exception_type: '1',
       });
     }
     for (const st of t.stopTimes) {
@@ -591,8 +590,8 @@ function buildGTFS() {
     }
   }
 
-  writeCSV(path.join(OUT_DIR, 'trips.txt'),       trips);
-  writeCSV(path.join(OUT_DIR, 'calendar.txt'),     calendar);
+  writeCSV(path.join(OUT_DIR, 'trips.txt'),          trips);
+  writeCSV(path.join(OUT_DIR, 'calendar_dates.txt'), calendarDates);
   writeCSV(path.join(OUT_DIR, 'stop_times.txt'),   stopTimes);
   writeCSV(path.join(OUT_DIR, 'stops.txt'), [...stopsMap.values()].map(s => ({
     stop_id: s.stop_id, stop_name: s.stop_name,
