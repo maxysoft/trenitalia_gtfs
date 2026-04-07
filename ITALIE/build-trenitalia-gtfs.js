@@ -117,6 +117,17 @@ const MAJOR_STATIONS = [
   // ── Rome hub ───────────────────────────────────────────────────────────
   { name: 'ROMA OSTIENSE',                fallbackId: 830007830, lat: 41.8757, lon: 12.4765 },
 
+  // -- Sicile (Intercity / ICN)
+{ name: 'MESSINA CENTRALE',       fallbackId: 830008240, lat: 38.1837, lon: 15.5592 },
+{ name: 'PALERMO CENTRALE',       fallbackId: 830008104, lat: 38.1105, lon: 13.3672 },
+{ name: 'CATANIA CENTRALE',       fallbackId: 830008332, lat: 37.5076, lon: 15.0983 },
+{ name: 'SIRACUSA',               fallbackId: 830008674, lat: 37.0673, lon: 15.2796 },
+
+// -- Transversales et Sud
+{ name: 'REGGIO CALABRIA LIDO',   fallbackId: 830003504, lat: 38.1186, lon: 15.6517 },
+{ name: 'PERUGIA',                fallbackId: 830003613, lat: 43.1037, lon: 12.3752 },
+{ name: 'ANCONA',                 fallbackId: 830005038, lat: 43.6115, lon: 13.5096 },
+
 ];
 
 // ─── Corridors par ligne réelle ─────────────────────────────────────────────
@@ -222,6 +233,14 @@ const CORRIDORS_BY_NAME = [
   ['TORINO PORTA NUOVA',          'REGGIO CALABRIA CENTRALE'],
   ['REGGIO CALABRIA CENTRALE',    'TORINO PORTA NUOVA'],
 
+  // ════════════════════════════════════════════════════════════════════════
+  // Lignes Sicile (Intercity & ICN)
+  // ════════════════════════════════════════════════════════════════════════
+
+  ['ROMA TERMINI', 'PALERMO CENTRALE'],
+  ['ROMA TERMINI', 'CATANIA CENTRALE'],
+  ['MILANO CENTRALE', 'SIRACUSA'],
+  ['VILLA SAN GIOVANNI', 'MESSINA CENTRALE'], // Le segment ferry
 ];
 
 // ─── État global ───────────────────────────────────────────────────────────
@@ -374,6 +393,7 @@ function extractTrainType(acronym) {
   if (a === 'IC')                        return { short: 'IC',  type: 101, long: 'Intercity' };
   if (a === 'EC')                        return { short: 'EC',  type: 101, long: 'EuroCity' };
   if (a === 'EN')                        return { short: 'EN',  type: 101, long: 'EuroNight' };
+  if (a === 'EXP')                       return { short: 'EXP', type: 101, long: 'Espresso' };
   return null; // Regionale, RV, etc. → exclus
 }
 
