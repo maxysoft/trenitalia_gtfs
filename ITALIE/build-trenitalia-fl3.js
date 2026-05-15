@@ -37,6 +37,7 @@ const API_STOPS = `${API_BASE}/website/stops`;
 const REQ_TIMEOUT_MS = 20000;
 const MAX_RETRIES = 3;
 const DELAY_MS = 350;
+const VALID_FL3_TRAIN_TYPES = new Set(['R', 'REGIONALE', 'RV', 'RE']);
 
 const FL3_STATION_HINTS = [
   { canonical: 'ROMA OSTIENSE', query: 'Roma Ostiense', lat: 41.8757, lon: 12.4765 },
@@ -152,11 +153,12 @@ function toISOItaly(date, hour = 6) {
     timeZone: 'Europe/Rome',
     timeZoneName: 'shortOffset',
   }).formatToParts(d);
-  const tz = parts.find(p => p.type === 'timeZoneName')?.value || 'GMT+1';
+  const tz = parts.find(p => p.type === 'timeZoneName')?.value || '';
   const match = tz.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/i);
-  const sign = match ? match[1] : '+';
-  const hh = String(match ? parseInt(match[2], 10) : 1).padStart(2, '0');
-  const mm = String(match && match[3] ? parseInt(match[3], 10) : 0).padStart(2, '0');
+  if (!match) throw new Error(`Unable to parse Europe/Rome offset from: ${tz || 'empty timezone name'}`);
+  const sign = match[1];
+  const hh = String(parseInt(match[2], 10)).padStart(2, '0');
+  const mm = String(match[3] ? parseInt(match[3], 10) : 0).padStart(2, '0');
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(hour).padStart(2, '0')}:00:00.000${sign}${hh}:${mm}`;
 }
 
@@ -307,7 +309,7 @@ async function fetchStops(cartId, solutionId) {
             normalizeName(node?.train?.acronym || '') ||
             normalizeName(node?.trainInfo?.acronym || '') ||
             normalizeName(node?.trainAcronym || '');
-          if (!['R', 'REGIONALE', 'RV', 'RE'].includes(acronym)) continue;
+          if (!VALID_FL3_TRAIN_TYPES.has(acronym)) continue;
           if (VERBOSE && !node?.train?.acronym && (node?.trainInfo?.acronym || node?.trainAcronym)) {
             console.warn(`   ℹ acronym fallback used for solution ${sol.id}`);
           }
