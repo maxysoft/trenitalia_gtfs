@@ -155,7 +155,12 @@ function toISOItaly(date, hour = 6) {
   }).formatToParts(d);
   const tz = parts.find(p => p.type === 'timeZoneName')?.value || '';
   const match = tz.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/i);
-  if (!match) throw new Error(`Unable to parse Europe/Rome offset from: ${tz || 'empty timezone name'}`);
+  if (!match) {
+    throw new Error(
+      `Unable to parse Europe/Rome offset from timeZoneName='${tz || 'empty'}' ` +
+      `for date='${d.toISOString()}' parts='${JSON.stringify(parts)}'`
+    );
+  }
   const sign = match[1];
   const hh = String(parseInt(match[2], 10)).padStart(2, '0');
   const mm = String(match[3] ? parseInt(match[3], 10) : 0).padStart(2, '0');

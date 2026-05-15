@@ -32,7 +32,7 @@ Options :
 - `--dry-run` : affiche les stats sans écrire de fichiers
 - `--verbose` : logs détaillés
 
-## FL3 Rome (GTFS statique + snapshot realtime)
+## FL3 Rome (GTFS statique + snapshot real-time)
 
 Le script `build-trenitalia-fl3.js` génère un feed ciblé FL3 (Roma Ostiense ↔ Viterbo Porta Fiorentina) et un snapshot de données temps réel exploitables.
 
@@ -46,13 +46,13 @@ node build-trenitalia-fl3.js \
 Options :
 - `--days N` : nombre de jours de service à crawler (défaut 7)
 - `--out ./path` : dossier de sortie GTFS FL3
-- `--realtime-out ./path/file.json` : sortie realtime JSON
+- `--realtime-out ./path/file.json` : sortie real-time JSON
 - `--dry-run` : exécute les appels API sans écrire de fichiers
 - `--verbose` : logs détaillés (notamment erreurs de récupération des détails)
 
 Sorties :
 - `agency.txt`, `routes.txt`, `trips.txt`, `stop_times.txt`, `stops.txt`, `calendar_dates.txt`, `feed_info.txt`
-- `fl3_realtime.json` : snapshot realtime par train/arrêt (si exposé par l’API)
+- `fl3_realtime.json` : snapshot real-time par train/arrêt (si exposé par l’API)
 
 ## Architecture
 
