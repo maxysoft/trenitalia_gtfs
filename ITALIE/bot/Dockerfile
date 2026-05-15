@@ -1,5 +1,5 @@
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM golang:1.22-alpine AS build
+FROM golang:1.24-alpine3.23 AS build
 
 # Installa dipendenze di sistema necessarie per la compilazione
 RUN apk add --no-cache git ca-certificates tzdata
@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -o /bot ./cmd/bot
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
-FROM alpine:3.19
+FROM alpine:3.23
 
 LABEL org.opencontainers.image.title="Bot Monitoraggio Trenitalia"
 LABEL org.opencontainers.image.description="Bot Telegram per notifiche real-time sui ritardi Trenitalia"
@@ -31,12 +31,17 @@ RUN apk add --no-cache ca-certificates tzdata
 # Copia il binario dallo stage di build
 COPY --from=build /bot /app/bot
 
+# Directory persistenza SQLite
+RUN mkdir -p /data
+
 # Imposta il fuso orario italiano come predefinito
 ENV TZ=Europe/Rome
+ENV SQLITE_DB_PATH=/data/ritardi.sqlite
 
 # Crea utente non privilegiato per sicurezza
 RUN addgroup -g 1001 -S trenitalia && \
-    adduser -u 1001 -S trenitalia -G trenitalia
+    adduser -u 1001 -S trenitalia -G trenitalia && \
+    chown -R trenitalia:trenitalia /app /data
 
 USER trenitalia
 

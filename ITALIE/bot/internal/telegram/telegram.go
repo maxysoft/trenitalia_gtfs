@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/maxysoft/trenitalia_gtfs/bot/internal/monitor"
+	"github.com/maxysoft/trenitalia_gtfs/bot/internal/storage"
 )
 
 const endpointSendMessage = "https://api.telegram.org/bot%s/sendMessage"
@@ -32,10 +33,18 @@ func NuovoClient(token string, chatID int64) *Client {
 
 // InviaMessaggio invia un testo formattato in MarkdownV2 alla chat configurata.
 func (c *Client) InviaMessaggio(testo string) error {
+	return c.inviaMessaggio(c.chatID, testo)
+}
+
+func (c *Client) InviaMessaggioConChatID(chatID int64, testo string) error {
+	return c.inviaMessaggio(chatID, testo)
+}
+
+func (c *Client) inviaMessaggio(chatID int64, testo string) error {
 	endpoint := fmt.Sprintf(endpointSendMessage, c.token)
 
 	params := url.Values{}
-	params.Set("chat_id", fmt.Sprintf("%d", c.chatID))
+	params.Set("chat_id", fmt.Sprintf("%d", chatID))
 	params.Set("text", testo)
 	params.Set("parse_mode", "MarkdownV2")
 	params.Set("disable_web_page_preview", "true")
@@ -78,6 +87,10 @@ func (c *Client) InviaMessaggioAvvio(linea string, soglia int, intervallo time.D
 		escapeMD(fmt.Sprintf("%d", intervalloMin)),
 	)
 	return c.InviaMessaggio(testo)
+}
+
+func (c *Client) InviaReportMensile(chatID int64, stats storage.StatisticheMensili) error {
+	return c.InviaMessaggioConChatID(chatID, FormattaReportMensile(stats))
 }
 
 // FormattaNotificaRitardo crea il messaggio Markdown per un treno in ritardo.
@@ -160,6 +173,23 @@ func escapeMD(s string) string {
 		s = strings.ReplaceAll(s, c, "\\"+c)
 	}
 	return s
+}
+
+func FormattaReportMensile(stats storage.StatisticheMensili) string {
+	var sb strings.Builder
+	sb.WriteString("📊 *Report mensile ritardi Trenitalia*\n\n")
+	sb.WriteString(fmt.Sprintf("🚆 *Linea:* `%s`\n", escapeMD(stats.Linea)))
+	sb.WriteString(fmt.Sprintf("🗓 *Mese:* `%s`\n\n", escapeMD(stats.MeseRiferimento)))
+	sb.WriteString(fmt.Sprintf("• Ritardi registrati: *%d*\n", stats.NumeroRitardi))
+	sb.WriteString(fmt.Sprintf("• Ritardo medio: *%.1f min*\n", stats.RitardoMedioMinuti))
+	sb.WriteString(fmt.Sprintf("• Ritardo massimo: *%d min*\n", stats.RitardoMassimoMinuti))
+	sb.WriteString(fmt.Sprintf(
+		"• Fascia più critica: *%s* \\(%d ritardi\\)\n",
+		escapeMD(stats.FasciaPeggiore),
+		stats.RitardiFasciaPeggiore,
+	))
+	sb.WriteString("\n_Dati aggregati dal monitor interno_")
+	return sb.String()
 }
 
 // fusoOrarioItalia restituisce il fuso orario Europe/Rome.

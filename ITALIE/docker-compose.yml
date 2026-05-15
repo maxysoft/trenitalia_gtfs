@@ -11,6 +11,9 @@ services:
       - .env
     environment:
       - TZ=Europe/Rome
+      - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/data/ritardi.sqlite}
+    volumes:
+      - ritardi-data:/data
     logging:
       driver: "json-file"
       options:
@@ -18,3 +21,28 @@ services:
         max-file: "3"
     # Il bot non espone porte — comunica solo verso l'esterno (API Telegram)
     network_mode: bridge
+
+  ritardi-web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: trenitalia-ritardi-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TZ=Europe/Rome
+      - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/data/ritardi.sqlite}
+      - WEB_BIND_ADDR=0.0.0.0
+      - WEB_PORT=${WEB_PORT:-8080}
+      - WEB_PAGE_SIZE=${WEB_PAGE_SIZE:-25}
+    ports:
+      - "${WEB_PORT:-8080}:${WEB_PORT:-8080}"
+    volumes:
+      - ritardi-data:/data:ro
+    depends_on:
+      - bot-trenitalia
+    network_mode: bridge
+
+volumes:
+  ritardi-data:

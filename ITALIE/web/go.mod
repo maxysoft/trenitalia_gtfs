@@ -1,4 +1,4 @@
-module github.com/maxysoft/trenitalia_gtfs/bot
+module github.com/maxysoft/trenitalia_gtfs/web
 
 go 1.24.0
 

@@ -27,23 +27,38 @@ jobs:
         with:
           node-version: '20'
 
-      # ── 3. Generazione dati GTFS ─────────────────────────────────────────────
-      - name: Genera GTFS
+      # ── 3. Generazione dati GTFS (rete nazionale) ───────────────────────────
+      - name: Genera GTFS nazionale
         run: |
           node build-trenitalia-gtfs.js \
             --days 30 \
             --out ./gtfs/trenitalia_it_api
         # Lo script restituisce exit 1 in caso di errore fatale → il job fallisce
 
-      # ── 4. Compressione dei file GTFS ────────────────────────────────────────
-      - name: Comprimi GTFS
+      # ── 4. Generazione dati GTFS FL3 + snapshot real-time ───────────────────
+      - name: Genera GTFS FL3
+        run: |
+          node build-trenitalia-fl3.js \
+            --days 7 \
+            --out ./gtfs/trenitalia_fl3 \
+            --realtime-out ./gtfs/trenitalia_fl3/fl3_realtime.json
+
+      # ── 5. Compressione dei file GTFS ────────────────────────────────────────
+      - name: Comprimi GTFS nazionale
         run: |
           cd gtfs
           zip -r ../trenitalia_gtfs.zip trenitalia_it_api/
           cd ..
-          echo "ZIP_SIZE=$(du -sh trenitalia_gtfs.zip | cut -f1)" >> $GITHUB_ENV
+          echo "ZIP_SIZE_GTFS=$(du -sh trenitalia_gtfs.zip | cut -f1)" >> $GITHUB_ENV
 
-      # ── 5. Pubblica / aggiorna la Release "latest" ───────────────────────────
+      - name: Comprimi GTFS FL3
+        run: |
+          cd gtfs
+          zip -r ../trenitalia_fl3_gtfs.zip trenitalia_fl3/
+          cd ..
+          echo "ZIP_SIZE_FL3=$(du -sh trenitalia_fl3_gtfs.zip | cut -f1)" >> $GITHUB_ENV
+
+      # ── 6. Pubblica / aggiorna la Release "latest" ───────────────────────────
       #    Usa il tag "latest-gtfs" (tag mobile aggiornato a ogni run)
       #    → il tuo backend può sempre scaricare dallo stesso URL stabile.
       - name: Elimina tag "latest-gtfs" esistente (se presente)
@@ -58,25 +73,32 @@ jobs:
           name: "GTFS Trenitalia — ${{ env.TODAY }}"
           body: |
             Feed generato automaticamente dall'API lefrecce.it.
-            - Finestra: 30 giorni a partire da oggi
-            - Aggiornamento: ${{ env.TODAY }}
-            - Dimensione ZIP: ${{ env.ZIP_SIZE }}
+              - Finestra: 30 giorni a partire da oggi
+              - FL3: 7 giorni + snapshot real-time
+              - Aggiornamento: ${{ env.TODAY }}
+              - Dimensione ZIP nazionale: ${{ env.ZIP_SIZE_GTFS }}
+              - Dimensione ZIP FL3: ${{ env.ZIP_SIZE_FL3 }}
 
-            **Download diretto:**
-            ```
-            https://github.com/${{ github.repository }}/releases/download/latest-gtfs/trenitalia_gtfs.zip
-            ```
-          files: trenitalia_gtfs.zip
+              **Download diretto:**
+              ```
+              https://github.com/${{ github.repository }}/releases/download/latest-gtfs/trenitalia_gtfs.zip
+              https://github.com/${{ github.repository }}/releases/download/latest-gtfs/trenitalia_fl3_gtfs.zip
+              ```
+          files: |
+            trenitalia_gtfs.zip
+            trenitalia_fl3_gtfs.zip
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TODAY: ${{ github.run_started_at }}
 
-      # ── 6. (Opzionale) Salva anche il ZIP come Artifact Actions ─────────────
+      # ── 7. (Opzionale) Salva anche gli ZIP come Artifact Actions ────────────
       #    Utile per debug senza necessità di una Release
       - name: Carica artifact
         uses: actions/upload-artifact@v4
         with:
           name: trenitalia-gtfs-${{ github.run_number }}
-          path: trenitalia_gtfs.zip
+          path: |
+            trenitalia_gtfs.zip
+            trenitalia_fl3_gtfs.zip
           retention-days: 7
