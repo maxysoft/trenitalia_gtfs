@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  bot-trenitalia:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: bot-trenitalia
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TZ=Europe/Rome
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Il bot non espone porte — comunica solo verso l'esterno (API Telegram)
+    network_mode: bridge
