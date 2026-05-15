@@ -91,7 +91,7 @@ function fetchJSON(urlOrOptions, body = null, retries = MAX_RETRIES) {
         .then(resolve)
         .catch(async (err) => {
           if (n >= retries) return reject(err);
-          await sleep(DELAY_MS * (n + 2));
+          await sleep(DELAY_MS * Math.pow(2, n + 1));
           attempt(n + 1);
         });
     };
@@ -148,18 +148,16 @@ function _fetch(urlOrOptions, body = null) {
 function toISOItaly(date, hour = 6) {
   const d = new Date(date);
   d.setHours(hour, 0, 0, 0);
-  const fmt = new Intl.DateTimeFormat('en-GB', {
+  const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Rome',
-    hour: '2-digit',
-    hour12: false,
-  });
-  const utcH = d.getUTCHours();
-  const romeH = parseInt(fmt.format(d), 10);
-  let diff = (romeH - utcH + 24) % 24;
-  if (diff > 12) diff -= 24;
-  const sign = diff >= 0 ? '+' : '-';
-  const hh = String(Math.floor(Math.abs(diff))).padStart(2, '0');
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(hour).padStart(2, '0')}:00:00.000${sign}${hh}:00`;
+    timeZoneName: 'shortOffset',
+  }).formatToParts(d);
+  const tz = parts.find(p => p.type === 'timeZoneName')?.value || 'GMT+1';
+  const match = tz.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/i);
+  const sign = match ? match[1] : '+';
+  const hh = String(match ? parseInt(match[2], 10) : 1).padStart(2, '0');
+  const mm = String(match && match[3] ? parseInt(match[3], 10) : 0).padStart(2, '0');
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(hour).padStart(2, '0')}:00:00.000${sign}${hh}:${mm}`;
 }
 
 function toGTFSTime(iso) {
@@ -197,7 +195,10 @@ async function resolveStationIdByName(query, canonical) {
   }
 
   const canonicalNorm = normalizeName(canonical);
-  const best = data.find(x => normalizeName(x.name).includes(canonicalNorm) || canonicalNorm.includes(normalizeName(x.name))) || data[0];
+  const exact = data.find(x => normalizeName(x.name) === canonicalNorm);
+  const containsCanonical = data.find(x => normalizeName(x.name).includes(canonicalNorm));
+  const canonicalContains = data.find(x => canonicalNorm.includes(normalizeName(x.name)));
+  const best = exact || containsCanonical || canonicalContains || data[0];
   return { id: best.id, name: best.name || canonical };
 }
 
@@ -302,8 +303,14 @@ async function fetchStops(cartId, solutionId) {
         if (!nodes.length) continue;
 
         for (const node of nodes) {
-          const acronym = normalizeName(node?.train?.acronym || node?.trainInfo?.acronym || node?.trainAcronym || '');
+          const acronym =
+            normalizeName(node?.train?.acronym || '') ||
+            normalizeName(node?.trainInfo?.acronym || '') ||
+            normalizeName(node?.trainAcronym || '');
           if (!['R', 'REGIONALE', 'RV', 'RE'].includes(acronym)) continue;
+          if (VERBOSE && !node?.train?.acronym && (node?.trainInfo?.acronym || node?.trainAcronym)) {
+            console.warn(`   ℹ acronym fallback used for solution ${sol.id}`);
+          }
 
           const tripNo = String(node?.train?.name || node?.train?.description || '').trim();
           const depIso = node?.departureTime;
@@ -321,7 +328,10 @@ async function fetchStops(cartId, solutionId) {
               await sleep(DELAY_MS);
               const detail = await fetchStops(cartId, sol.id);
               const detailsArr = Array.isArray(detail) ? detail : [];
-              const match = detailsArr.find(x => String(x?.summary?.trainInfo?.name || x?.summary?.trainInfo?.description || '').trim() === tripNo) || detailsArr[0];
+              const match = detailsArr.find(
+                x => String(x?.summary?.trainInfo?.name || x?.summary?.trainInfo?.description || '').trim() === tripNo
+              );
+              if (!match) continue;
               detailStops = Array.isArray(match?.stops) ? match.stops : [];
 
               realtime.push({
@@ -391,7 +401,7 @@ async function fetchStops(cartId, solutionId) {
               arrival_time: toGTFSTime(st.arr),
               departure_time: toGTFSTime(st.dep),
               stop_id: stopId,
-              stop_sequence: idx,
+              stop_sequence: idx + 1,
               pickup_type: '0',
               drop_off_type: '0',
             });
