@@ -17,16 +17,6 @@ const els = {
   pageinfo: document.getElementById('pageinfo')
 };
 
-function esc(v) {
-  return String(v ?? '').replace(/[&<>"']/g, c => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[c]));
-}
-
 function buildUrl() {
   const p = new URLSearchParams();
   p.set('page', String(state.page));
@@ -37,7 +27,8 @@ function buildUrl() {
 }
 
 async function loadData() {
-  els.rows.innerHTML = `<tr><td colspan="9">Caricamento...</td></tr>`;
+  els.rows.textContent = '';
+  appendMessageRow('Caricamento...');
   try {
     const res = await fetch(buildUrl(), { headers: { 'Accept': 'application/json' } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -49,7 +40,8 @@ async function loadData() {
     els.prev.disabled = !data.has_prev;
     els.next.disabled = !data.has_next;
   } catch (err) {
-    els.rows.innerHTML = `<tr><td colspan="9">Errore caricamento dati: ${esc(err.message)}</td></tr>`;
+    els.rows.textContent = '';
+    appendMessageRow(`Errore caricamento dati: ${String(err.message || 'sconosciuto')}`);
     els.summary.textContent = 'Errore';
     els.pageinfo.textContent = 'N/D';
     els.prev.disabled = true;
@@ -58,23 +50,39 @@ async function loadData() {
 }
 
 function renderRows(records) {
+  els.rows.textContent = '';
   if (!records.length) {
-    els.rows.innerHTML = `<tr><td colspan="9">Nessun dato disponibile per i filtri selezionati.</td></tr>`;
+    appendMessageRow('Nessun dato disponibile per i filtri selezionati.');
     return;
   }
-  els.rows.innerHTML = records.map(r => `
-    <tr>
-      <td>${esc(r.line_code)}</td>
-      <td>${esc(r.train_number)}</td>
-      <td>${esc(r.service_date)}</td>
-      <td>${esc(r.station_name)}</td>
-      <td>${esc(r.delay_minutes)}</td>
-      <td>${esc(r.scheduled_time)}</td>
-      <td>${esc(r.actual_time)}</td>
-      <td>${esc(r.status)}</td>
-      <td>${esc(r.observed_at)}</td>
-    </tr>
-  `).join('');
+  records.forEach((r) => {
+    const tr = document.createElement('tr');
+    appendCell(tr, r.line_code);
+    appendCell(tr, r.train_number);
+    appendCell(tr, r.service_date);
+    appendCell(tr, r.station_name);
+    appendCell(tr, r.delay_minutes);
+    appendCell(tr, r.scheduled_time);
+    appendCell(tr, r.actual_time);
+    appendCell(tr, r.status);
+    appendCell(tr, r.observed_at);
+    els.rows.appendChild(tr);
+  });
+}
+
+function appendCell(row, value) {
+  const td = document.createElement('td');
+  td.textContent = value ?? '';
+  row.appendChild(td);
+}
+
+function appendMessageRow(message) {
+  const tr = document.createElement('tr');
+  const td = document.createElement('td');
+  td.colSpan = 9;
+  td.textContent = message;
+  tr.appendChild(td);
+  els.rows.appendChild(tr);
 }
 
 els.apply.addEventListener('click', () => {

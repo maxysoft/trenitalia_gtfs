@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -279,11 +280,10 @@ func fasciaOraria(hourText string) string {
 	if len(hourText) == 1 {
 		hourText = "0" + hourText
 	}
-	hour, err := time.Parse("15", hourText)
+	h, err := strconv.Atoi(hourText)
 	if err != nil {
 		return "N/D"
 	}
-	h := hour.Hour()
 	switch {
 	case h >= 0 && h <= 5:
 		return "Notte (00-05)"
