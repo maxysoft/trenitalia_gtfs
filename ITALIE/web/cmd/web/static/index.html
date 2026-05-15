@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trenitalia FL3 — Ritardi</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <h1>Dashboard ritardi Trenitalia</h1>
+      <p>Dati letti in sola lettura da SQLite.</p>
+    </header>
+
+    <section class="toolbar">
+      <label class="field">
+        <span>Ricerca</span>
+        <input id="search" type="search" placeholder="Treno, stazione, data, stato">
+      </label>
+      <label class="field">
+        <span>Linea</span>
+        <input id="line" type="text" placeholder="FL3">
+      </label>
+      <button id="apply" class="btn">Applica</button>
+      <button id="reset" class="btn btn-secondary">Reset</button>
+    </section>
+
+    <section class="meta">
+      <div id="summary">Caricamento...</div>
+      <div class="pagination">
+        <button id="prev" class="btn btn-secondary">← Precedente</button>
+        <span id="pageinfo">Pagina 1</span>
+        <button id="next" class="btn btn-secondary">Successiva →</button>
+      </div>
+    </section>
+
+    <section class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Linea</th>
+            <th>Treno</th>
+            <th>Data servizio</th>
+            <th>Stazione</th>
+            <th>Ritardo (min)</th>
+            <th>Previsto</th>
+            <th>Reale</th>
+            <th>Stato</th>
+            <th>Osservato</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

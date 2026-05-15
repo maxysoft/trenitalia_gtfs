@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,12 @@ type Config struct {
 	IntervalloPolling time.Duration
 	// Tipi di treno accettati (es. R,RV,RE per regionali)
 	TipiTrenoAccettati []string
+	// Percorso del database SQLite dei ritardi
+	SQLiteDBPath string
+	// Abilita invio report mensile automatico
+	ReportMensileAbilitato bool
+	// Chat ID Telegram per report mensili (fallback: TelegramChatID)
+	ReportTelegramChatID int64
 }
 
 // LeggiConfig legge la configurazione dalle variabili d'ambiente e restituisce
@@ -64,6 +71,15 @@ func LeggiConfig() (*Config, error) {
 		tipiTreno = splitVirgola(v)
 	}
 
+	reportChatID := chatID
+	if reportChatIDStr := os.Getenv("REPORT_TELEGRAM_CHAT_ID"); reportChatIDStr != "" {
+		parsedReportChatID, parseErr := strconv.ParseInt(reportChatIDStr, 10, 64)
+		if parseErr != nil {
+			return nil, fmt.Errorf("REPORT_TELEGRAM_CHAT_ID non valido: %w", parseErr)
+		}
+		reportChatID = parsedReportChatID
+	}
+
 	return &Config{
 		TelegramToken:        token,
 		TelegramChatID:       chatID,
@@ -73,6 +89,12 @@ func LeggiConfig() (*Config, error) {
 		RitardoSogliaMinuti:  ritardoSoglia,
 		IntervalloPolling:    time.Duration(intervalloSec) * time.Second,
 		TipiTrenoAccettati:   tipiTreno,
+		SQLiteDBPath:         valorePredefinito("SQLITE_DB_PATH", "/data/ritardi.sqlite"),
+		ReportMensileAbilitato: booleano(
+			"INVIO_REPORT_MENSILE",
+			true,
+		),
+		ReportTelegramChatID: reportChatID,
 	}, nil
 }
 
@@ -98,11 +120,27 @@ func interi(chiave string, predefinito int) int {
 func splitVirgola(s string) []string {
 	var risultato []string
 	for _, parte := range splitStr(s, ',') {
+		parte = strings.TrimSpace(parte)
 		if parte != "" {
 			risultato = append(risultato, parte)
 		}
 	}
 	return risultato
+}
+
+func booleano(chiave string, predefinito bool) bool {
+	valore := strings.TrimSpace(strings.ToLower(os.Getenv(chiave)))
+	if valore == "" {
+		return predefinito
+	}
+	switch valore {
+	case "1", "true", "vero", "yes", "y", "on":
+		return true
+	case "0", "false", "falso", "no", "n", "off":
+		return false
+	default:
+		return predefinito
+	}
 }
 
 func splitStr(s string, sep rune) []string {

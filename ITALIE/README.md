@@ -6,6 +6,7 @@ Genera un feed GTFS dall'API lefrecce.it, aggiornato automaticamente ogni giorno
 
 ```bash
 curl -L https://github.com/<UTENTE>/<REPO>/releases/download/latest-gtfs/trenitalia_gtfs.zip -o gtfs.zip
+curl -L https://github.com/<UTENTE>/<REPO>/releases/download/latest-gtfs/trenitalia_fl3_gtfs.zip -o fl3_gtfs.zip
 ```
 
 **File inclusi** in `gtfs/trenitalia_it_api/`:
@@ -19,6 +20,10 @@ curl -L https://github.com/<UTENTE>/<REPO>/releases/download/latest-gtfs/trenita
 | `stops.txt` | Stazioni + coordinate GPS |
 | `calendar.txt` | Servizio per data esatta |
 | `feed_info.txt` | Metadati del feed |
+
+Per FL3 (`gtfs/trenitalia_fl3/`), la release include:
+- GTFS statico della linea FL3
+- `fl3_realtime.json` con snapshot real-time
 
 ## Utilizzo locale
 
@@ -86,6 +91,18 @@ docker compose logs -f
 | `RITARDO_SOGLIA_MINUTI` | Soglia minima in minuti | `10` |
 | `INTERVALLO_POLLING_SECONDI` | Frequenza di controllo | `300` |
 | `TIPI_TRENO` | Tipi treno da monitorare | `R,RV,RE,REGIONALE` |
+| `SQLITE_DB_PATH` | Percorso DB SQLite ritardi | `/data/ritardi.sqlite` |
+| `INVIO_REPORT_MENSILE` | Abilita report mensile automatico | `true` |
+| `REPORT_TELEGRAM_CHAT_ID` | Chat ID report (fallback: chat principale) | `TELEGRAM_CHAT_ID` |
+| `WEB_PORT` | Porta servizio web dashboard | `8080` |
+| `WEB_PAGE_SIZE` | Record per pagina dashboard | `25` |
+
+### Report mensile automatico (inizio mese)
+
+Il bot salva i ritardi in SQLite e, il giorno 1 di ogni mese, invia un riepilogo del mese precedente:
+- ritardo medio
+- ritardo massimo
+- fascia oraria con più ritardi (notte/mattina/pomeriggio/sera)
 
 ### Esempio notifica Telegram
 
@@ -119,17 +136,43 @@ go build -o bot-trenitalia ./cmd/bot
 ./bot-trenitalia
 ```
 
+## Dashboard Web (read-only su SQLite)
+
+È disponibile un secondo servizio web con interfaccia moderna (senza librerie/font esterni) per consultare i ritardi:
+- ricerca testuale
+- filtro linea
+- paginazione server-side
+
+### Avvio con Docker Compose
+
+```bash
+docker compose up -d --build
+```
+
+Poi apri:
+
+```text
+http://localhost:8080
+```
+
 ## Architettura
 
 ```
 GitHub Actions (cron 03:00 UTC)
-  └─ node build-trenitalia-gtfs.js
-       └─ API lefrecce.it (POST /website/ticket/solutions)
-            └─ gtfs/trenitalia_it_api/*.txt
-                 └─ trenitalia_gtfs.zip → GitHub Release "latest-gtfs"
-                      └─ Il tuo backend scarica tramite URL stabile
+  ├─ node build-trenitalia-gtfs.js
+  │    └─ gtfs/trenitalia_it_api/*.txt
+  │         └─ trenitalia_gtfs.zip
+  └─ node build-trenitalia-fl3.js
+       └─ gtfs/trenitalia_fl3/* + fl3_realtime.json
+            └─ trenitalia_fl3_gtfs.zip
+                 └─ GitHub Release "latest-gtfs" (asset multipli)
 
 Bot Telegram (Docker Compose, polling ogni 5 min)
   └─ API lefrecce.it (GET /website/stops con dati real-time)
-       └─ Ritardo > soglia → notifica Telegram (MarkdownV2)
+       ├─ Ritardo > soglia → notifica Telegram (MarkdownV2)
+       └─ Persistenza SQLite + report mensile automatico
+
+Web dashboard (Docker Compose)
+  └─ Lettura SQLite in sola lettura
+       └─ Ricerca + paginazione via API /api/delays
 ```
