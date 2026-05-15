@@ -73,17 +73,17 @@ jobs:
           name: "GTFS Trenitalia — ${{ env.TODAY }}"
           body: |
             Feed generato automaticamente dall'API lefrecce.it.
-              - Finestra: 30 giorni a partire da oggi
-              - FL3: 7 giorni + snapshot real-time
-              - Aggiornamento: ${{ env.TODAY }}
-              - Dimensione ZIP nazionale: ${{ env.ZIP_SIZE_GTFS }}
-              - Dimensione ZIP FL3: ${{ env.ZIP_SIZE_FL3 }}
+            - Finestra: 30 giorni a partire da oggi
+            - FL3: 7 giorni + snapshot real-time
+            - Aggiornamento: ${{ env.TODAY }}
+            - Dimensione ZIP nazionale: ${{ env.ZIP_SIZE_GTFS }}
+            - Dimensione ZIP FL3: ${{ env.ZIP_SIZE_FL3 }}
 
-              **Download diretto:**
-              ```
-              https://github.com/${{ github.repository }}/releases/download/latest-gtfs/trenitalia_gtfs.zip
-              https://github.com/${{ github.repository }}/releases/download/latest-gtfs/trenitalia_fl3_gtfs.zip
-              ```
+            **Download diretto:**
+            ```
+            https://github.com/${{ github.repository }}/releases/download/latest-gtfs/trenitalia_gtfs.zip
+            https://github.com/${{ github.repository }}/releases/download/latest-gtfs/trenitalia_fl3_gtfs.zip
+            ```
           files: |
             trenitalia_gtfs.zip
             trenitalia_fl3_gtfs.zip
