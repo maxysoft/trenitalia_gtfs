@@ -1,15 +1,15 @@
-name: Build Trenitalia GTFS
+name: Generazione GTFS Trenitalia
 
 on:
   schedule:
-    # Tous les jours à 03:00 UTC (04:00 Rome en hiver, 05:00 en été)
+    # Ogni giorno alle 03:00 UTC (04:00 ora italiana in inverno, 05:00 in estate)
     - cron: '0 3 * * *'
   push:
     branches: [main]
-  workflow_dispatch:          # déclenchement manuel depuis l'UI GitHub
+  workflow_dispatch:          # avvio manuale dall'interfaccia GitHub
 
 permissions:
-  contents: write             # nécessaire pour créer/mettre à jour la Release
+  contents: write             # necessario per creare/aggiornare la Release
 
 jobs:
   build-gtfs:
@@ -17,52 +17,52 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      # ── 1. Checkout du repo ──────────────────────────────────────────────
+      # ── 1. Checkout del repository ───────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── 2. Node.js ───────────────────────────────────────────────────────
+      # ── 2. Configurazione Node.js ────────────────────────────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # ── 3. Générer les données GTFS ──────────────────────────────────────
-      - name: Build GTFS
+      # ── 3. Generazione dati GTFS ─────────────────────────────────────────────
+      - name: Genera GTFS
         run: |
           node build-trenitalia-gtfs.js \
             --days 30 \
             --out ./gtfs/trenitalia_it_api
-        # Le script retourne exit 1 en cas d'erreur fatale → le job échoue
+        # Lo script restituisce exit 1 in caso di errore fatale → il job fallisce
 
-      # ── 4. Zipper les fichiers GTFS ──────────────────────────────────────
-      - name: Zip GTFS
+      # ── 4. Compressione dei file GTFS ────────────────────────────────────────
+      - name: Comprimi GTFS
         run: |
           cd gtfs
           zip -r ../trenitalia_gtfs.zip trenitalia_it_api/
           cd ..
           echo "ZIP_SIZE=$(du -sh trenitalia_gtfs.zip | cut -f1)" >> $GITHUB_ENV
 
-      # ── 5. Publier / mettre à jour la Release "latest" ───────────────────
-      #    Utilise le tag "latest-gtfs" (tag flottant mis à jour à chaque run)
-      #    → ton backend peut toujours télécharger la même URL stable.
-      - name: Delete existing "latest-gtfs" tag (if exists)
+      # ── 5. Pubblica / aggiorna la Release "latest" ───────────────────────────
+      #    Usa il tag "latest-gtfs" (tag mobile aggiornato a ogni run)
+      #    → il tuo backend può sempre scaricare dallo stesso URL stabile.
+      - name: Elimina tag "latest-gtfs" esistente (se presente)
         run: |
           git tag -d latest-gtfs 2>/dev/null || true
           git push origin :refs/tags/latest-gtfs 2>/dev/null || true
 
-      - name: Create Release & upload ZIP
+      - name: Crea Release e carica ZIP
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-gtfs
           name: "GTFS Trenitalia — ${{ env.TODAY }}"
           body: |
-            Feed généré automatiquement depuis l'API lefrecce.it.
-            - Fenêtre : 30 jours à partir d'aujourd'hui
-            - Mise à jour : ${{ env.TODAY }}
-            - Taille ZIP : ${{ env.ZIP_SIZE }}
+            Feed generato automaticamente dall'API lefrecce.it.
+            - Finestra: 30 giorni a partire da oggi
+            - Aggiornamento: ${{ env.TODAY }}
+            - Dimensione ZIP: ${{ env.ZIP_SIZE }}
 
-            **Téléchargement direct :**
+            **Download diretto:**
             ```
             https://github.com/${{ github.repository }}/releases/download/latest-gtfs/trenitalia_gtfs.zip
             ```
@@ -72,9 +72,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TODAY: ${{ github.run_started_at }}
 
-      # ── 6. (Optionnel) Garder aussi le ZIP comme Artifact Actions ────────
-      #    Utile pour déboguer sans avoir besoin d'une Release
-      - name: Upload artifact
+      # ── 6. (Opzionale) Salva anche il ZIP come Artifact Actions ─────────────
+      #    Utile per debug senza necessità di una Release
+      - name: Carica artifact
         uses: actions/upload-artifact@v4
         with:
           name: trenitalia-gtfs-${{ github.run_number }}

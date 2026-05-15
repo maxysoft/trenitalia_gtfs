@@ -2,9 +2,9 @@
 'use strict';
 
 /**
- * Build GTFS + realtime snapshot for Trenitalia FL3 (Rome suburban line)
+ * Genera GTFS + snapshot real-time per Trenitalia FL3 (linea suburbana di Roma)
  *
- * Data sources (lefrecce public BFF API):
+ * Fonti dati (API pubblica lefrecce.it BFF):
  * - GET  /website/locations/search
  * - POST /website/ticket/solutions
  * - GET  /website/stops?cartId=...&solutionId=...
@@ -134,7 +134,7 @@ function _fetch(urlOrOptions, body = null) {
         try {
           resolve(JSON.parse(raw));
         } catch (e) {
-          reject(new Error('JSON parse error: ' + raw.slice(0, 120)));
+          reject(new Error('Errore parsing JSON: ' + raw.slice(0, 120)));
         }
       });
     });
@@ -266,11 +266,11 @@ async function fetchStops(cartId, solutionId) {
   const fromMain = FL3_STATION_HINTS.find(s => s.canonical === 'ROMA OSTIENSE');
   const toMain = FL3_STATION_HINTS.find(s => s.canonical === 'VITERBO PORTA FIORENTINA');
 
-  if (!fromMain || !toMain) throw new Error('FL3 terminal stations are not configured.');
+  if (!fromMain || !toMain) throw new Error('Le stazioni terminali FL3 non sono configurate.');
 
-  console.log(`\n🇮🇹 FL3 builder (Trenitalia) — days=${DAYS}`);
+  console.log(`\n🇮🇹 FL3 builder (Trenitalia) — giorni=${DAYS}`);
   console.log(`   Output: ${OUT_DIR}`);
-  console.log(`   Realtime: ${RT_FILE}`);
+  console.log(`   Real-time: ${RT_FILE}`);
 
   const fromResolved = await resolveStationIdByName(fromMain.query, fromMain.canonical);
   const toResolved = await resolveStationIdByName(toMain.query, toMain.canonical);
@@ -319,7 +319,7 @@ async function fetchStops(cartId, solutionId) {
       const cartId = res?.cartId;
       const solutions = Array.isArray(res?.solutions) ? res.solutions : [];
 
-      console.log(`   ${dir.origin.name} -> ${dir.destination.name}: ${solutions.length} solution(s)`);
+      console.log(`   ${dir.origin.name} -> ${dir.destination.name}: ${solutions.length} soluzione/i`);
 
       for (const item of solutions) {
         const sol = item?.solution;
@@ -434,7 +434,7 @@ async function fetchStops(cartId, solutionId) {
     }
   }
 
-  console.log(`\n✅ FL3 trips: ${trips.length}, stops: ${stopsMap.size}, realtime snapshots: ${realtime.length}`);
+  console.log(`\n✅ FL3 viaggi: ${trips.length}, fermate: ${stopsMap.size}, snapshot real-time: ${realtime.length}`);
 
   if (DRY_RUN) return;
 
@@ -475,8 +475,8 @@ async function fetchStops(cartId, solutionId) {
     trips: realtime,
   }, null, 2));
 
-  console.log(`📁 GTFS written to ${OUT_DIR}`);
-  console.log(`📡 Realtime snapshot written to ${RT_FILE}`);
+  console.log(`📁 GTFS scritto in ${OUT_DIR}`);
+  console.log(`📡 Snapshot real-time scritto in ${RT_FILE}`);
 })().catch(err => {
   console.error(`❌ ${err.message}`);
   process.exit(1);

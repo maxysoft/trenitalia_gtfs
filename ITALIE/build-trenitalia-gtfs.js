@@ -2,16 +2,16 @@
 /**
  * build-trenitalia-gtfs.js  — v3
  * ════════════════════════════════════════════════════════════════════════════
- * Génère un GTFS pour Trenitalia Alta Velocità + Intercity
+ * Genera un feed GTFS per Trenitalia Alta Velocità + Intercity
  *   FR (Frecciarossa) · FA (Frecciargento) · FB (Frecciabianca)
  *   IC (Intercity)    · ICN (Intercity Notte) · EC (EuroCity) · EN (EuroNight)
  *
- * v3 — couverture réseau complète :
- *   • 42 gares (toutes les gares AV + IC d'Italie)
- *   • 58 corridors organisés par ligne réelle (pas juste les grandes villes)
- *   • Bootstrap dynamique des IDs via autocomplete API
- *   • Timezone CET/CEST automatique
- *   • Toutes les erreurs visibles sans --verbose
+ * v3 — copertura rete completa:
+ *   • 42 stazioni (tutte le stazioni AV + IC d'Italia)
+ *   • 58 corridoi organizzati per linea reale (non solo le grandi città)
+ *   • Bootstrap dinamico degli ID tramite autocomplete API
+ *   • Fuso orario CET/CEST automatico
+ *   • Tutti gli errori visibili senza --verbose
  *
  * Usage :
  *   node build-trenitalia-gtfs.js
@@ -20,7 +20,7 @@
  *   node build-trenitalia-gtfs.js --dry-run
  *   node build-trenitalia-gtfs.js --verbose
  *
- * API : POST https://www.lefrecce.it/Channels.Website.BFF.WEB/website/ticket/solutions
+ * API: POST https://www.lefrecce.it/Channels.Website.BFF.WEB/website/ticket/solutions
  * ════════════════════════════════════════════════════════════════════════════
  */
 
@@ -54,14 +54,14 @@ const MAX_RETRIES     = 3;
 const REQ_TIMEOUT_MS  = 15000;
 const SOLUTIONS_LIMIT = 20;
 
-// ─── Gares — réseau AV + IC complet ────────────────────────────────────────
+// ─── Stazioni — rete AV + IC completa ────────────────────────────────────────
 //
-// Organisées par axe pour la lisibilité.
-// fallbackId = ID lefrecce connu (utilisé si l'autocomplete échoue)
+// Organizzate per asse per leggibilità.
+// fallbackId = ID lefrecce noto (usato se l'autocomplete fallisce)
 //
 const MAJOR_STATIONS = [
 
-  // ── Axe AV Turin–Milan–Bologne–Florence–Rome–Naples–Salerne ────────────
+  // ── Asse AV Torino–Milano–Bologna–Firenze–Roma–Napoli–Salerno ────────────
   { name: 'TORINO PORTA NUOVA',           fallbackId: 830007149, lat: 45.0607, lon:  7.6784 },
   { name: 'TORINO PORTA SUSA',            fallbackId: 830005504, lat: 45.0709, lon:  7.6664 },
   { name: 'MILANO CENTRALE',              fallbackId: 830001700, lat: 45.4855, lon:  9.2045 },
@@ -76,7 +76,7 @@ const MAJOR_STATIONS = [
   { name: 'NAPOLI CENTRALE',              fallbackId: 830000303, lat: 40.8536, lon: 14.2727 },
   { name: 'SALERNO',                      fallbackId: 830005820, lat: 40.6784, lon: 14.7798 },
 
-  // ── Axe AV Milan–Vérone–Venise (FR/FB) ────────────────────────────────
+  // ── Asse AV Milano–Verona–Venezia (FR/FB) ────────────────────────────────
   { name: 'BRESCIA',                      fallbackId: 830000941, lat: 45.5210, lon: 10.2151 },
   { name: 'VERONA PORTA NUOVA',           fallbackId: 830002783, lat: 45.4278, lon: 11.0014 },
   { name: 'VICENZA',                      fallbackId: 830008021, lat: 45.5454, lon: 11.5354 },
@@ -84,11 +84,11 @@ const MAJOR_STATIONS = [
   { name: 'VENEZIA MESTRE',               fallbackId: 830003013, lat: 45.4758, lon: 12.2371 },
   { name: 'VENEZIA SANTA LUCIA',          fallbackId: 830008409, lat: 45.4414, lon: 12.3213 },
 
-  // ── Axe EC Milan–Triest/Udine ──────────────────────────────────────────
+  // ── Asse EC Milano–Trieste/Udine ──────────────────────────────────────────
   { name: 'TRIESTE CENTRALE',             fallbackId: 830007227, lat: 45.6588, lon: 13.7758 },
   { name: 'UDINE',                        fallbackId: 830004636, lat: 46.0560, lon: 13.2397 },
 
-  // ── Axe Adriatique (FA/FB/IC) Bologna–Ancona–Pescara–Foggia–Bari–Lecce ─
+  // ── Asse Adriatico (FA/FB/IC) Bologna–Ancona–Pescara–Foggia–Bari–Lecce ─
   { name: 'RIMINI',                       fallbackId: 830004903, lat: 44.0549, lon: 12.5669 },
   { name: 'ANCONA',                       fallbackId: 830005038, lat: 43.6115, lon: 13.5096 },
   { name: 'PESCARA CENTRALE',             fallbackId: 830004014, lat: 42.4631, lon: 14.2095 },
@@ -98,7 +98,7 @@ const MAJOR_STATIONS = [
   { name: 'BRINDISI',                     fallbackId: 830001038, lat: 40.6342, lon: 17.9373 },
   { name: 'LECCE',                        fallbackId: 830002513, lat: 40.3540, lon: 18.1712 },
 
-  // ── Axe Tyrrhenien IC (Rome–Gênes–Turin) ──────────────────────────────
+  // ── Asse Tirrenico IC (Roma–Genova–Torino) ──────────────────────────────
   { name: 'LIVORNO CENTRALE',             fallbackId: 830002651, lat: 43.5559, lon: 10.3122 },
   { name: 'PISA CENTRALE',                fallbackId: 830004133, lat: 43.7085, lon: 10.3952 },
   { name: 'LA SPEZIA CENTRALE',           fallbackId: 830002371, lat: 44.1023, lon:  9.8227 },
@@ -107,47 +107,47 @@ const MAJOR_STATIONS = [
   { name: 'SAVONA',                       fallbackId: 830005610, lat: 44.3077, lon:  8.4793 },
   { name: 'VENTIMIGLIA',                  fallbackId: 830008000, lat: 43.7888, lon:  7.6087 },
 
-  // ── Grand Sud IC/ICN (Rome–Reggio Calabria et Milan–Reggio) ───────────
+  // ── Grande Sud IC/ICN (Roma–Reggio Calabria e Milano–Reggio) ───────────
   { name: 'NAPOLI CAMPI FLEGREI',         fallbackId: 830003014, lat: 40.8471, lon: 14.1913 },
   { name: 'PAOLA',                        fallbackId: 830003997, lat: 39.3606, lon: 16.0341 },
   { name: 'LAMEZIA TERME CENTRALE',       fallbackId: 830002388, lat: 38.9702, lon: 16.3065 },
   { name: 'VILLA SAN GIOVANNI',           fallbackId: 830008075, lat: 38.2193, lon: 15.6389 },
   { name: 'REGGIO CALABRIA CENTRALE',     fallbackId: 830003505, lat: 38.1125, lon: 15.6479 },
 
-  // ── Rome hub ───────────────────────────────────────────────────────────
+  // ── Hub Roma ───────────────────────────────────────────────────────────
   { name: 'ROMA OSTIENSE',                fallbackId: 830007830, lat: 41.8757, lon: 12.4765 },
 
-  // -- Sicile (Intercity / ICN)
+  // -- Sicilia (Intercity / ICN)
 { name: 'MESSINA CENTRALE',       fallbackId: 830008240, lat: 38.1837, lon: 15.5592 },
 { name: 'PALERMO CENTRALE',       fallbackId: 830008104, lat: 38.1105, lon: 13.3672 },
 { name: 'CATANIA CENTRALE',       fallbackId: 830008332, lat: 37.5076, lon: 15.0983 },
 { name: 'SIRACUSA',               fallbackId: 830008674, lat: 37.0673, lon: 15.2796 },
 
-// -- Transversales et Sud
+// -- Trasversali e Sud
 { name: 'REGGIO CALABRIA LIDO',   fallbackId: 830003504, lat: 38.1186, lon: 15.6517 },
 { name: 'PERUGIA',                fallbackId: 830003613, lat: 43.1037, lon: 12.3752 },
 { name: 'ANCONA',                 fallbackId: 830005038, lat: 43.6115, lon: 13.5096 },
 
 ];
 
-// ─── Corridors par ligne réelle ─────────────────────────────────────────────
+// ─── Corridoi per linea reale ─────────────────────────────────────────────
 //
-// Stratégie : on crawle les paires terminales de chaque ligne AV/IC.
-// Le endpoint /details ramène tous les arrêts intermédiaires.
-// On évite N² en se limitant aux vrais terminus de service.
+// Strategia: si elaborano le coppie terminali di ogni linea AV/IC.
+// L'endpoint /details restituisce tutte le fermate intermedie.
+// Si evita N² limitandosi ai veri capolinea di servizio.
 //
 const CORRIDORS_BY_NAME = [
 
   // ════════════════════════════════════════════════════════════════════════
-  // FRECCIAROSSA (FR) — axe Turin–Rome–Naples–Salerne
+  // FRECCIAROSSA (FR) — asse Torino–Roma–Napoli–Salerno
   // ════════════════════════════════════════════════════════════════════════
-  // Terminus nord ↔ terminus sud
+  // Capolinea nord ↔ capolinea sud
   ['TORINO PORTA NUOVA',          'SALERNO'],
   ['SALERNO',                     'TORINO PORTA NUOVA'],
   ['TORINO PORTA NUOVA',          'NAPOLI CENTRALE'],
   ['NAPOLI CENTRALE',             'TORINO PORTA NUOVA'],
 
-  // Milan ↔ sud
+  // Milano ↔ sud
   ['MILANO CENTRALE',             'SALERNO'],
   ['SALERNO',                     'MILANO CENTRALE'],
   ['MILANO CENTRALE',             'NAPOLI CENTRALE'],
@@ -155,14 +155,14 @@ const CORRIDORS_BY_NAME = [
   ['MILANO CENTRALE',             'ROMA TERMINI'],
   ['ROMA TERMINI',                'MILANO CENTRALE'],
 
-  // Rome ↔ nord
+  // Roma ↔ nord
   ['ROMA TERMINI',                'TORINO PORTA NUOVA'],
   ['TORINO PORTA NUOVA',          'ROMA TERMINI'],
   ['ROMA TERMINI',                'VENEZIA SANTA LUCIA'],
   ['VENEZIA SANTA LUCIA',         'ROMA TERMINI'],
 
   // ════════════════════════════════════════════════════════════════════════
-  // FRECCIAROSSA / FRECCIARGENTO — axe Venise–Rome–Naples
+  // FRECCIAROSSA / FRECCIARGENTO — asse Venezia–Roma–Napoli
   // ════════════════════════════════════════════════════════════════════════
   ['VENEZIA SANTA LUCIA',         'NAPOLI CENTRALE'],
   ['NAPOLI CENTRALE',             'VENEZIA SANTA LUCIA'],
@@ -170,7 +170,7 @@ const CORRIDORS_BY_NAME = [
   ['SALERNO',                     'VENEZIA SANTA LUCIA'],
 
   // ════════════════════════════════════════════════════════════════════════
-  // FRECCIABIANCA (FB) — axe Milan–Venise (ligne classique)
+  // FRECCIABIANCA (FB) — asse Milano–Venezia (linea classica)
   // ════════════════════════════════════════════════════════════════════════
   ['MILANO CENTRALE',             'VENEZIA SANTA LUCIA'],
   ['VENEZIA SANTA LUCIA',         'MILANO CENTRALE'],
@@ -178,7 +178,7 @@ const CORRIDORS_BY_NAME = [
   ['VENEZIA SANTA LUCIA',         'TORINO PORTA NUOVA'],
 
   // ════════════════════════════════════════════════════════════════════════
-  // FRECCIARGENTO (FA) — Adriatique Rome–Bari–Lecce
+  // FRECCIARGENTO (FA) — Adriatico Roma–Bari–Lecce
   // ════════════════════════════════════════════════════════════════════════
   ['ROMA TERMINI',                'LECCE'],
   ['LECCE',                       'ROMA TERMINI'],
@@ -186,7 +186,7 @@ const CORRIDORS_BY_NAME = [
   ['BARI CENTRALE',               'ROMA TERMINI'],
 
   // ════════════════════════════════════════════════════════════════════════
-  // FRECCIABIANCA (FB) — Adriatique Milan/Bologne–Bari–Lecce
+  // FRECCIABIANCA (FB) — Adriatico Milano/Bologna–Bari–Lecce
   // ════════════════════════════════════════════════════════════════════════
   ['MILANO CENTRALE',             'LECCE'],
   ['LECCE',                       'MILANO CENTRALE'],
@@ -196,7 +196,7 @@ const CORRIDORS_BY_NAME = [
   ['BARI CENTRALE',               'MILANO CENTRALE'],
 
   // ════════════════════════════════════════════════════════════════════════
-  // EUROCITY (EC) — Milan–Trieste et Milan–Udine
+  // EUROCITY (EC) — Milano–Trieste e Milano–Udine
   // ════════════════════════════════════════════════════════════════════════
   ['MILANO CENTRALE',             'TRIESTE CENTRALE'],
   ['TRIESTE CENTRALE',            'MILANO CENTRALE'],
