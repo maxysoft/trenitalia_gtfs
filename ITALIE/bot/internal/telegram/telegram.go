@@ -163,10 +163,12 @@ func escapeMD(s string) string {
 }
 
 // fusoOrarioItalia restituisce il fuso orario Europe/Rome.
+// Richiede tzdata installato nel sistema (incluso nell'immagine Docker).
 func fusoOrarioItalia() *time.Location {
 	loc, err := time.LoadLocation("Europe/Rome")
 	if err != nil {
-		return time.FixedZone("CET", 3600)
+		// Fallback CEST (UTC+2) — copre la maggior parte dell'anno in Italia
+		return time.FixedZone("CEST", 7200)
 	}
 	return loc
 }

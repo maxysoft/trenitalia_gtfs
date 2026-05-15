@@ -168,11 +168,14 @@ func normalizza(s string) string {
 }
 
 // formatDataItalia formatta una data nel fuso orario italiano per le API.
+// Richiede che il database dei fusi orari (tzdata) sia disponibile nel sistema
+// (installato tramite il pacchetto tzdata nell'immagine Docker).
 func formatDataItalia(t time.Time) string {
 	loc, err := time.LoadLocation("Europe/Rome")
 	if err != nil {
-		// Fallback UTC+1 se il database dei fusi orari non è disponibile
-		loc = time.FixedZone("CET", 3600)
+		// Fallback di emergenza: usa l'offset CEST (UTC+2) che copre la maggior
+		// parte dell'anno in Italia. Per precisione completa, installare tzdata.
+		loc = time.FixedZone("CEST", 7200)
 	}
 	t = time.Date(t.Year(), t.Month(), t.Day(), 6, 0, 0, 0, loc)
 	_, offset := t.Zone()

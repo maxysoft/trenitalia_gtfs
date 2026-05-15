@@ -32,7 +32,9 @@ type FermataRitardo struct {
 	Stato         string
 }
 
-// Monitor gestisce il ciclo di polling e il tracciamento delle notifiche già inviate.
+// pausaTraRichieste è l'attesa tra chiamate API consecutive per evitare
+// rate-limiting lato server lefrecce.it.
+const pausaTraRichieste = 350 * time.Millisecond
 type Monitor struct {
 	cfg        *config.Config
 	client     *trenitalia.Client
@@ -133,7 +135,7 @@ func (m *Monitor) Controlla() ([]NotificaRitardo, error) {
 		}
 
 		// Piccola pausa tra richieste API per non sovraccaricare il server
-		time.Sleep(350 * time.Millisecond)
+		time.Sleep(pausaTraRichieste)
 	}
 
 	// Rimuove notifiche più vecchie di 24 ore per liberare memoria
