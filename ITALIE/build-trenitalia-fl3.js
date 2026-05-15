@@ -139,8 +139,8 @@ function _fetch(urlOrOptions, body = null) {
       });
     });
 
-    req.setTimeout(REQ_TIMEOUT_MS, () => req.destroy(new Error('timeout')));
     req.on('error', reject);
+    req.setTimeout(REQ_TIMEOUT_MS, () => req.destroy(new Error('timeout')));
     if (bodyStr) req.write(bodyStr);
     req.end();
   });
@@ -156,9 +156,10 @@ function toISOItaly(date, hour = 6) {
   const tz = parts.find(p => p.type === 'timeZoneName')?.value || '';
   const match = tz.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/i);
   if (!match) {
+    const partTypes = parts.map(p => `${p.type}:${p.value}`).join('|');
     throw new Error(
       `Unable to parse Europe/Rome offset from timeZoneName='${tz || 'empty'}' ` +
-      `for date='${d.toISOString()}' parts='${JSON.stringify(parts)}'`
+      `for date='${d.toISOString()}' parts='${partTypes}'`
     );
   }
   const sign = match[1];
@@ -211,6 +212,24 @@ async function resolveStationIdByName(query, canonical) {
 
 function looksLikeFL3Stop(name) {
   return FL3_KEYWORDS.has(normalizeName(name));
+}
+
+function extractTrainAcronym(node) {
+  return (
+    normalizeName(node?.train?.acronym || '') ||
+    normalizeName(node?.trainInfo?.acronym || '') ||
+    normalizeName(node?.trainAcronym || '')
+  );
+}
+
+function extractTrainNumber(node) {
+  return String(
+    node?.train?.name ||
+    node?.train?.description ||
+    node?.trainInfo?.name ||
+    node?.trainInfo?.description ||
+    ''
+  ).trim();
 }
 
 async function fetchSolutions(originId, destinationId, day) {
@@ -310,16 +329,13 @@ async function fetchStops(cartId, solutionId) {
         if (!nodes.length) continue;
 
         for (const node of nodes) {
-          const acronym =
-            normalizeName(node?.train?.acronym || '') ||
-            normalizeName(node?.trainInfo?.acronym || '') ||
-            normalizeName(node?.trainAcronym || '');
+          const acronym = extractTrainAcronym(node);
           if (!VALID_FL3_TRAIN_TYPES.has(acronym)) continue;
           if (VERBOSE && !node?.train?.acronym && (node?.trainInfo?.acronym || node?.trainAcronym)) {
             console.warn(`   ℹ acronym fallback used for solution ${sol.id}`);
           }
 
-          const tripNo = String(node?.train?.name || node?.train?.description || '').trim();
+          const tripNo = extractTrainNumber(node);
           const depIso = node?.departureTime;
           const arrIso = node?.arrivalTime;
           if (!tripNo || !depIso || !arrIso) continue;
