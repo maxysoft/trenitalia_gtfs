@@ -17,27 +17,41 @@ const endpointSendMessage = "https://api.telegram.org/bot%s/sendMessage"
 
 // Client invia messaggi a una chat Telegram tramite HTTP.
 type Client struct {
-	token  string
-	chatID int64
-	http   *http.Client
+	token       string
+	delayChatID int64
+	adminChatID int64
+	http        *http.Client
 }
 
-// NuovoClient crea un nuovo client Telegram.
-func NuovoClient(token string, chatID int64) *Client {
+// NuovoClient creates a new Telegram client.
+// delayChatID receives delay/recovery notifications; adminChatID receives startup and error messages.
+func NuovoClient(token string, delayChatID, adminChatID int64) *Client {
 	return &Client{
-		token:  token,
-		chatID: chatID,
-		http:   &http.Client{Timeout: 15 * time.Second},
+		token:       token,
+		delayChatID: delayChatID,
+		adminChatID: adminChatID,
+		http:        &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
 // InviaMessaggio invia un testo formattato in MarkdownV2 alla chat configurata.
 func (c *Client) InviaMessaggio(testo string) error {
-	return c.inviaMessaggio(c.chatID, testo)
+	return c.inviaMessaggio(c.delayChatID, testo)
 }
 
 func (c *Client) InviaMessaggioConChatID(chatID int64, testo string) error {
 	return c.inviaMessaggio(chatID, testo)
+}
+
+// InviaMessaggioAdmin sends a plain text notification to the admin chat.
+func (c *Client) InviaMessaggioAdmin(testo string) error {
+	return c.inviaMessaggio(c.adminChatID, escapeMD(testo))
+}
+
+// InviaErroreAdmin sends a formatted error notification to the admin chat.
+func (c *Client) InviaErroreAdmin(err error) error {
+	testo := fmt.Sprintf("*Errore monitor:*\n\n`%s`", escapeMD(err.Error()))
+	return c.inviaMessaggio(c.adminChatID, testo)
 }
 
 func (c *Client) inviaMessaggio(chatID int64, testo string) error {
@@ -73,92 +87,82 @@ func (c *Client) InviaNotificaRitardo(n monitor.NotificaRitardo) error {
 	return c.InviaMessaggio(FormattaNotificaRitardo(n))
 }
 
-// InviaMessaggioAvvio invia il messaggio di avvio del bot.
+// InviaMessaggioAvvio sends the bot startup message to the admin chat.
 func (c *Client) InviaMessaggioAvvio(linea string, soglia int, intervallo time.Duration) error {
 	intervalloMin := int(intervallo.Minutes())
 	testo := fmt.Sprintf(
-		"🚂 *Bot Monitoraggio Trenitalia* avviato\\!\n\n"+
-			"📋 *Linea monitorata:* `%s`\n"+
-			"⏱ *Soglia ritardo:* %s minuti\n"+
-			"🔄 *Intervallo controllo:* ogni %s minuti\n\n"+
-			"_Il bot è ora operativo e controlla i treni in tempo reale\\._",
+		"*Bot Monitoraggio Trenitalia* avviato\\!\n\n"+
+			"*Linea monitorata:* `%s`\n"+
+			"*Soglia ritardo:* %s minuti\n"+
+			"*Intervallo controllo:* ogni %s minuti\n\n"+
+			"_Il bot e' ora operativo e controlla entrambe le direzioni\\._",
 		escapeMD(linea),
 		escapeMD(fmt.Sprintf("%d", soglia)),
 		escapeMD(fmt.Sprintf("%d", intervalloMin)),
 	)
-	return c.InviaMessaggio(testo)
+	return c.inviaMessaggio(c.adminChatID, testo)
 }
 
 func (c *Client) InviaReportMensile(chatID int64, stats storage.StatisticheMensili) error {
 	return c.InviaMessaggioConChatID(chatID, FormattaReportMensile(stats))
 }
 
-// FormattaNotificaRitardo crea il messaggio Markdown per un treno in ritardo.
+// FormattaNotificaRitardo creates the MarkdownV2 message for a delay or recovery notification.
+// For delays, it shows the train, route, and the last delayed stop (furthest along the route).
+// For recoveries, it shows the current position and residual delay.
 func FormattaNotificaRitardo(n monitor.NotificaRitardo) string {
+	loc := fusoOrarioItalia()
 	var sb strings.Builder
 
-	// Intestazione con linea e numero treno
-	sb.WriteString(fmt.Sprintf(
-		"🚨 *RITARDO %s* — Treno `%s`\n\n",
-		escapeMD(n.LineaTreno),
-		escapeMD(n.NumeroTreno),
-	))
-
-	// Percorso e data
-	sb.WriteString(fmt.Sprintf(
-		"📍 *Percorso:* %s → %s\n",
-		escapeMD(n.StazioneOrigine),
-		escapeMD(n.StazioneDestinazione),
-	))
-	sb.WriteString(fmt.Sprintf("📅 *Data servizio:* %s\n\n", escapeMD(n.DataServizio)))
-
-	// Elenco fermate in ritardo (massimo 5 per non superare il limite Telegram)
-	totale := len(n.FermateInRitardo)
-	sb.WriteString(fmt.Sprintf("⚠️ *Fermate con ritardo* \\(%d\\):\n", totale))
-
-	loc := fusoOrarioItalia()
-	limite := totale
-	if limite > 5 {
-		limite = 5
+	percorso := escapeMD(n.StazioneDestinazione)
+	if n.StazioneOrigine != "" {
+		percorso = escapeMD(n.StazioneOrigine) + " → " + escapeMD(n.StazioneDestinazione)
 	}
 
-	for i := 0; i < limite; i++ {
-		f := n.FermateInRitardo[i]
+	if n.Recuperato {
+		sb.WriteString(fmt.Sprintf(
+			"✅ *%s* — Treno `%s` — Recuperato\n%s\n",
+			escapeMD(n.LineaTreno),
+			escapeMD(n.NumeroTreno),
+			percorso,
+		))
+		if n.UltimaPosizioneNota != "" {
+			sb.WriteString(fmt.Sprintf("\n📍 Ultima posizione: *%s*\n", escapeMD(n.UltimaPosizioneNota)))
+		}
+		if n.RitardoAttuale > 0 {
+			sb.WriteString(fmt.Sprintf("⏱ Ritardo residuo: *%d min*\n", n.RitardoAttuale))
+		} else {
+			sb.WriteString("_In orario_\n")
+		}
+		sb.WriteString("\n_Dati forniti da [lefrecce\\.it](https://www\\.lefrecce\\.it/)_")
+		return sb.String()
+	}
 
+	// Delay notification header.
+	sb.WriteString(fmt.Sprintf(
+		"🚨 *%s* — Treno `%s`\n%s\n",
+		escapeMD(n.LineaTreno),
+		escapeMD(n.NumeroTreno),
+		percorso,
+	))
+
+	// Show the last delayed stop (furthest along the route with delay above threshold).
+	if len(n.FermateInRitardo) > 0 {
+		f := n.FermateInRitardo[len(n.FermateInRitardo)-1]
 		sb.WriteString(fmt.Sprintf("\n🔸 *%s*\n", escapeMD(f.NomeStazione)))
-
-		ritardoStr := fmt.Sprintf("%d min", f.RitardoMinuti)
-		sb.WriteString(fmt.Sprintf("   ⏱ Ritardo: *%s*\n", escapeMD(ritardoStr)))
-
+		sb.WriteString(fmt.Sprintf("   ⏱ Ritardo: *%d min*\n", f.RitardoMinuti))
 		if !f.OraOraria.IsZero() {
-			sb.WriteString(fmt.Sprintf(
-				"   🕐 Previsto: `%s`\n",
-				f.OraOraria.In(loc).Format("15:04"),
-			))
+			sb.WriteString(fmt.Sprintf("   🕐 Previsto: `%s`\n", f.OraOraria.In(loc).Format("15:04")))
 		}
 		if !f.OraReale.IsZero() {
-			sb.WriteString(fmt.Sprintf(
-				"   ⌚ Stimato: `%s`\n",
-				f.OraReale.In(loc).Format("15:04"),
-			))
+			sb.WriteString(fmt.Sprintf("   ⌚ Stimato: `%s`\n", f.OraReale.In(loc).Format("15:04")))
 		}
 		if f.Binario != "" {
 			sb.WriteString(fmt.Sprintf("   🛤 Binario: *%s*\n", escapeMD(f.Binario)))
 		}
-		if f.Stato != "" {
-			sb.WriteString(fmt.Sprintf("   📊 Stato: _%s_\n", escapeMD(f.Stato)))
-		}
 	}
 
-	if totale > 5 {
-		sb.WriteString(fmt.Sprintf(
-			"\n_\\.\\.\\. e altre %d fermate in ritardo_",
-			totale-5,
-		))
-	}
-
-	sb.WriteString("\n\n_Dati forniti da [lefrecce\\.it](https://www\\.lefrecce\\.it)_")
-
+	sb.WriteString("\n_Dati forniti da [lefrecce\\.it](https://www\\.lefrecce\\.it/)_")
 	return sb.String()
 }
 

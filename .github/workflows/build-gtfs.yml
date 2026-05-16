@@ -27,7 +27,12 @@ jobs:
         with:
           node-version: '20'
 
-      # ── 3. Generazione dati GTFS (rete nazionale) ───────────────────────────
+      # ── 3. Imposta variabili di ambiente ─────────────────────────────────────
+      - name: Imposta data odierna
+        id: vars
+        run: echo "today=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      # ── 4. Generazione dati GTFS (rete nazionale) ───────────────────────────
       - name: Genera GTFS nazionale
         run: |
           node build-trenitalia-gtfs.js \
@@ -35,7 +40,7 @@ jobs:
             --out ./gtfs/trenitalia_it_api
         # Lo script restituisce exit 1 in caso di errore fatale → il job fallisce
 
-      # ── 4. Generazione dati GTFS FL3 + snapshot real-time ───────────────────
+      # ── 5. Generazione dati GTFS FL3 + snapshot real-time ───────────────────
       - name: Genera GTFS FL3
         run: |
           node build-trenitalia-fl3.js \
@@ -43,22 +48,24 @@ jobs:
             --out ./gtfs/trenitalia_fl3 \
             --realtime-out ./gtfs/trenitalia_fl3/fl3_realtime.json
 
-      # ── 5. Compressione dei file GTFS ────────────────────────────────────────
+      # ── 6. Compressione dei file GTFS ────────────────────────────────────────
       - name: Comprimi GTFS nazionale
+        id: zip_gtfs
         run: |
           cd gtfs
           zip -r ../trenitalia_gtfs.zip trenitalia_it_api/
           cd ..
-          echo "ZIP_SIZE_GTFS=$(du -sh trenitalia_gtfs.zip | cut -f1)" >> $GITHUB_ENV
+          echo "size=$(du -sh trenitalia_gtfs.zip | cut -f1)" >> $GITHUB_OUTPUT
 
       - name: Comprimi GTFS FL3
+        id: zip_fl3
         run: |
           cd gtfs
           zip -r ../trenitalia_fl3_gtfs.zip trenitalia_fl3/
           cd ..
-          echo "ZIP_SIZE_FL3=$(du -sh trenitalia_fl3_gtfs.zip | cut -f1)" >> $GITHUB_ENV
+          echo "size=$(du -sh trenitalia_fl3_gtfs.zip | cut -f1)" >> $GITHUB_OUTPUT
 
-      # ── 6. Pubblica / aggiorna la Release "latest" ───────────────────────────
+      # ── 7. Pubblica / aggiorna la Release "latest" ───────────────────────────
       #    Usa il tag "latest-gtfs" (tag mobile aggiornato a ogni run)
       #    → il tuo backend può sempre scaricare dallo stesso URL stabile.
       - name: Elimina tag "latest-gtfs" esistente (se presente)
@@ -70,14 +77,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-gtfs
-          name: "GTFS Trenitalia — ${{ env.TODAY }}"
+          name: "GTFS Trenitalia — ${{ steps.vars.outputs.today }}"
           body: |
             Feed generato automaticamente dall'API lefrecce.it.
             - Finestra: 30 giorni a partire da oggi
             - FL3: 7 giorni + snapshot real-time
-            - Aggiornamento: ${{ env.TODAY }}
-            - Dimensione ZIP nazionale: ${{ env.ZIP_SIZE_GTFS }}
-            - Dimensione ZIP FL3: ${{ env.ZIP_SIZE_FL3 }}
+            - Aggiornamento: ${{ steps.vars.outputs.today }}
+            - Dimensione ZIP nazionale: ${{ steps.zip_gtfs.outputs.size }}
+            - Dimensione ZIP FL3: ${{ steps.zip_fl3.outputs.size }}
 
             **Download diretto:**
             ```
@@ -90,9 +97,8 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TODAY: ${{ github.run_started_at }}
 
-      # ── 7. (Opzionale) Salva anche gli ZIP come Artifact Actions ────────────
+      # ── 8. (Opzionale) Salva anche gli ZIP come Artifact Actions ────────────
       #    Utile per debug senza necessità di una Release
       - name: Carica artifact
         uses: actions/upload-artifact@v4

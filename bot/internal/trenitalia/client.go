@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"time"
@@ -29,10 +30,15 @@ type Client struct {
 	http *http.Client
 }
 
-// NuovoClient crea un nuovo client con timeout configurato.
+// NuovoClient crea un nuovo client con timeout configurato e cookie jar
+// per mantenere la sessione tra le chiamate all'API lefrecce.it.
 func NuovoClient() *Client {
+	jar, _ := cookiejar.New(nil)
 	return &Client{
-		http: &http.Client{Timeout: timeoutRichiesta},
+		http: &http.Client{
+			Timeout: timeoutRichiesta,
+			Jar:     jar,
+		},
 	}
 }
 
@@ -196,4 +202,98 @@ func tronca(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen]
+}
+
+// apiVT è l'URL base delle API pubbliche viaggiatreno.it.
+const apiVT = "http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno"
+
+// Partenze restituisce le partenze da una stazione nell'orario richiesto.
+// codStazione ha il formato viaggiatreno: es. "S08406" (da lefrecce ID "830008406").
+func (c *Client) Partenze(codStazione string, orario time.Time) ([]PartenzaVT, error) {
+	orarioStr := formatOrarioVT(orario)
+	u := fmt.Sprintf("%s/partenze/%s/%s", apiVT, codStazione, url.PathEscape(orarioStr))
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creazione richiesta partenze: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("richiesta partenze: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("HTTP %d da partenze: %s", resp.StatusCode, tronca(string(b), 200))
+	}
+
+	var risultati []PartenzaVT
+	if err := json.NewDecoder(resp.Body).Decode(&risultati); err != nil {
+		return nil, fmt.Errorf("decodifica partenze: %w", err)
+	}
+	return risultati, nil
+}
+
+// AndamentoTreno restituisce lo stato in tempo reale di un treno.
+// codOrigine è il codice stazione di origine (es. "S08217"),
+// numero è il numero del treno come stringa (es. "20364"),
+// dataMs è il timestamp in millisecondi del giorno di servizio.
+func (c *Client) AndamentoTreno(codOrigine, numero string, dataMs int64) (*AndamentoVT, error) {
+	u := fmt.Sprintf("%s/andamentoTreno/%s/%s/%d", apiVT, codOrigine, numero, dataMs)
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creazione richiesta andamento: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("richiesta andamento treno: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("HTTP %d da andamento treno: %s", resp.StatusCode, tronca(string(b), 200))
+	}
+
+	var risultato AndamentoVT
+	if err := json.NewDecoder(resp.Body).Decode(&risultato); err != nil {
+		return nil, fmt.Errorf("decodifica andamento treno: %w", err)
+	}
+	return &risultato, nil
+}
+
+// ConvertiCodiceVT converte un ID stazione lefrecce.it nel codice viaggiatreno.it.
+// Esempio: "830008406" → "S08406"
+func ConvertiCodiceVT(lefrecceID string) string {
+	if len(lefrecceID) <= 4 {
+		return "S" + lefrecceID
+	}
+	return "S" + lefrecceID[4:]
+}
+
+// formatOrarioVT formatta un'orario nel formato atteso dall'endpoint /partenze.
+// Esempio: "Fri May 15 2026 16:40:00 GMT+0200 (CEST)"
+func formatOrarioVT(t time.Time) string {
+	loc, err := time.LoadLocation("Europe/Rome")
+	if err != nil {
+		loc = time.FixedZone("CEST", 7200)
+	}
+	t = t.In(loc)
+	abbr, offset := t.Zone()
+	h := offset / 3600
+	m := (offset % 3600) / 60
+	sign := "+"
+	if offset < 0 {
+		sign = "-"
+		h, m = -h, -m
+	}
+	return fmt.Sprintf("%s GMT%s%02d%02d (%s)",
+		t.Format("Mon Jan 02 2006 15:04:05"),
+		sign, h, m, abbr)
 }

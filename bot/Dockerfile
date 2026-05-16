@@ -17,10 +17,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -o /bot ./cmd/bot
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
-FROM alpine:3.23
+FROM cgr.dev/chainguard/wolfi-base
 
-LABEL org.opencontainers.image.title="Bot Monitoraggio Trenitalia"
-LABEL org.opencontainers.image.description="Bot Telegram per notifiche real-time sui ritardi Trenitalia"
+LABEL org.opencontainers.image.title="Bot Monitoraggio Treni"
+LABEL org.opencontainers.image.description="Bot Telegram per notifiche real-time sui ritardi treni"
 LABEL org.opencontainers.image.source="https://github.com/maxysoft/trenitalia_gtfs"
 
 WORKDIR /app
@@ -39,10 +39,10 @@ ENV TZ=Europe/Rome
 ENV SQLITE_DB_PATH=/data/ritardi.sqlite
 
 # Crea utente non privilegiato per sicurezza
-RUN addgroup -g 1001 -S trenitalia && \
-    adduser -u 1001 -S trenitalia -G trenitalia && \
-    chown -R trenitalia:trenitalia /app /data
+RUN addgroup -g 1001 -S treni && \
+    adduser -u 1001 -S treni -G treni && \
+    chown -R treni:treni /app /data
 
-USER trenitalia
+USER treni
 
 ENTRYPOINT ["/app/bot"]

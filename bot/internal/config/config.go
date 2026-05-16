@@ -33,6 +33,27 @@ type Config struct {
 	ReportMensileAbilitato bool
 	// Chat ID Telegram per report mensili (fallback: TelegramChatID)
 	ReportTelegramChatID int64
+	// AdminChatID is the chat for admin notifications (startup, errors).
+	// Defaults to TelegramChatID if not set.
+	AdminChatID int64
+	// Modalità debug: logga tutti i ritardi > 2 minuti indipendentemente dalla soglia
+	DebugAbilitato bool
+	// StazioniLinea sono keyword da confrontare con origine/destinazione del treno.
+	// Se impostato, vengono monitorati solo i treni la cui origine o destinazione
+	// contiene almeno una delle keyword (confronto case-insensitive, sottostringa).
+	// Lasciare vuoto per monitorare tutti i treni.
+	StazioniLinea []string
+	// StazioniExtraPartenze è una lista di nomi di stazione aggiuntivi da cui
+	// interrogare l'endpoint /partenze, oltre alle stazioni di origine e destinazione.
+	// Utile per stazioni con nomi diversi tra lefrecce.it e viaggiatreno.it
+	// (es. "Viterbo Porta Romana" oltre a "Viterbo Porta Fiorentina").
+	StazioniExtraPartenze []string
+	// PausaNotturnaInizio è l'orario (HH:MM, fuso Europe/Rome) da cui sospendere il polling.
+	// Default "00:00". Lasciare vuoto per disabilitare la pausa notturna.
+	PausaNotturnaInizio string
+	// PausaNotturnaFine è l'orario (HH:MM, fuso Europe/Rome) fino a cui sospendere il polling.
+	// Default "04:30".
+	PausaNotturnaFine string
 }
 
 // LeggiConfig legge la configurazione dalle variabili d'ambiente e restituisce
@@ -66,9 +87,19 @@ func LeggiConfig() (*Config, error) {
 		intervalloSec = 300
 	}
 
-	tipiTreno := []string{"R", "REGIONALE", "RV", "RE"}
+	tipiTreno := []string{"R", "REGIONALE", "REG", "RV", "RE"}
 	if v := os.Getenv("TIPI_TRENO"); v != "" {
 		tipiTreno = splitVirgola(v)
+	}
+
+	var stazioniLinea []string
+	if v := os.Getenv("STAZIONI_LINEA"); v != "" {
+		stazioniLinea = splitVirgola(v)
+	}
+
+	var stazioniExtra []string
+	if v := os.Getenv("STAZIONI_EXTRA_PARTENZE"); v != "" {
+		stazioniExtra = splitVirgola(v)
 	}
 
 	reportChatID := chatID
@@ -78,6 +109,15 @@ func LeggiConfig() (*Config, error) {
 			return nil, fmt.Errorf("REPORT_TELEGRAM_CHAT_ID non valido: %w", parseErr)
 		}
 		reportChatID = parsedReportChatID
+	}
+
+	adminChatID := chatID
+	if v := os.Getenv("ADMIN_CHAT_ID"); v != "" {
+		parsed, parseErr := strconv.ParseInt(v, 10, 64)
+		if parseErr != nil {
+			return nil, fmt.Errorf("ADMIN_CHAT_ID non valido: %w", parseErr)
+		}
+		adminChatID = parsed
 	}
 
 	return &Config{
@@ -94,8 +134,12 @@ func LeggiConfig() (*Config, error) {
 			"INVIO_REPORT_MENSILE",
 			true,
 		),
-		ReportTelegramChatID: reportChatID,
-	}, nil
+		ReportTelegramChatID:  reportChatID,
+		AdminChatID:           adminChatID,
+		DebugAbilitato:        booleano("DEBUG_MODE", false),
+		StazioniLinea:         stazioniLinea,
+		StazioniExtraPartenze: stazioniExtra, PausaNotturnaInizio: valorePredefinito("ORA_INIZIO_PAUSA", "00:00"),
+		PausaNotturnaFine: valorePredefinito("ORA_FINE_PAUSA", "04:30")}, nil
 }
 
 func valorePredefinito(chiave, predefinito string) string {

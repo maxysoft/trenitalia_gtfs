@@ -1,4 +1,13 @@
-version: '3.8'
+x-logging: &logging
+  logging:
+    driver: "json-file"
+    options:
+      max-size: 10m
+      max-file: "3"
+
+x-resources: &resources
+  mem_limit: 64M
+  cpus: '0.3'
 
 services:
   bot-trenitalia:
@@ -12,15 +21,11 @@ services:
     environment:
       - TZ=Europe/Rome
       - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/data/ritardi.sqlite}
+      - DEBUG_MODE=${DEBUG_MODE:-false}
+      - ADMIN_CHAT_ID=${ADMIN_CHAT_ID:-}
     volumes:
       - ritardi-data:/data
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    # Il bot non espone porte — comunica solo verso l'esterno (API Telegram)
-    network_mode: bridge
+    <<: [*logging, *resources]
 
   ritardi-web:
     build:
@@ -42,7 +47,7 @@ services:
       - ritardi-data:/data:ro
     depends_on:
       - bot-trenitalia
-    network_mode: bridge
+    <<: [*logging, *resources]
 
 volumes:
   ritardi-data:

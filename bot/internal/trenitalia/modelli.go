@@ -1,10 +1,41 @@
 // Pacchetto trenitalia definisce i modelli dati per l'API lefrecce.it.
 package trenitalia
 
+import "encoding/json"
+
 // Localita rappresenta una stazione restituita dall'API di ricerca.
 type Localita struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+}
+
+// UnmarshalJSON handles both string and numeric IDs from the API.
+// The lefrecce.it API returns numeric IDs, so we normalize to string.
+func (l *Localita) UnmarshalJSON(data []byte) error {
+	type Alias struct {
+		ID   json.RawMessage `json:"id"`
+		Name string          `json:"name"`
+	}
+	var a Alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	l.Name = a.Name
+	if len(a.ID) == 0 {
+		return nil
+	}
+	// Try string first, then number
+	var s string
+	if err := json.Unmarshal(a.ID, &s); err == nil {
+		l.ID = s
+		return nil
+	}
+	var n json.Number
+	if err := json.Unmarshal(a.ID, &n); err != nil {
+		return err
+	}
+	l.ID = n.String()
+	return nil
 }
 
 // RichiestaPercorsi è il corpo della POST /website/ticket/solutions.
@@ -102,4 +133,49 @@ type Fermata struct {
 // LocalitaFermata è il sotto-oggetto con il nome della stazione.
 type LocalitaFermata struct {
 	Name string `json:"name"`
+}
+
+// PartenzaVT è una singola partenza restituita dall'endpoint viaggiatreno.it /partenze.
+type PartenzaVT struct {
+	NumeroTreno          int    `json:"numeroTreno"`
+	Categoria            string `json:"categoria"`
+	CategoriaDescrizione string `json:"categoriaDescrizione"`
+	CodOrigine           string `json:"codOrigine"`
+	Origine              string `json:"origine"`
+	Destinazione         string `json:"destinazione"`
+	DataPartenzaTreno    int64  `json:"dataPartenzaTreno"`
+	Ritardo              int    `json:"ritardo"`
+	Circolante           bool   `json:"circolante"`
+	NonPartito           bool   `json:"nonPartito"`
+	Arrivato             bool   `json:"arrivato"`
+}
+
+// AndamentoVT è lo stato in tempo reale di un treno dall'endpoint viaggiatreno.it /andamentoTreno.
+type AndamentoVT struct {
+	NumeroTreno               int         `json:"numeroTreno"`
+	Categoria                 string      `json:"categoria"`
+	CategoriaDescrizione      string      `json:"categoriaDescrizione"`
+	CodOrigine                string      `json:"codOrigine"`
+	Origine                   string      `json:"origine"`
+	Destinazione              string      `json:"destinazione"`
+	Ritardo                   int         `json:"ritardo"`
+	Circolante                bool        `json:"circolante"`
+	Arrivato                  bool        `json:"arrivato"`
+	NonPartito                bool        `json:"nonPartito"`
+	StazioneUltimoRilevamento string      `json:"stazioneUltimoRilevamento"`
+	DataPartenzaTreno         int64       `json:"dataPartenzaTreno"`
+	DataPartenzaTrenoAsDate   string      `json:"dataPartenzaTrenoAsDate"`
+	Fermate                   []FermataVT `json:"fermate"`
+}
+
+// FermataVT è una fermata all'interno della risposta andamentoTreno.
+type FermataVT struct {
+	Stazione               string `json:"stazione"`
+	PartenzaTeorica        int64  `json:"partenza_teorica"`
+	ArrivoTeoricoMs        int64  `json:"arrivo_teorico"`
+	PartenzaReale          int64  `json:"partenzaReale"`
+	ArrivoReale            int64  `json:"arrivoReale"`
+	RitardoPartenza        int    `json:"ritardoPartenza"`
+	RitardoArrivo          int    `json:"ritardoArrivo"`
+	BinarioEffettivoPDescr string `json:"binarioEffettivoPartenzaDescrizione"`
 }

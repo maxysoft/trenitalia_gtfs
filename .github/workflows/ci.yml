@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    name: Test (${{ matrix.module }})
+    if: ${{ !contains(github.event.head_commit.message, 'skip_build') }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [bot, web]
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go test
+        run: go test -v -race ./...
+
+  build:
+    name: Build (${{ matrix.module }})
+    needs: test
+    if: ${{ !contains(github.event.head_commit.message, 'skip_build') }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [bot, web]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and export ${{ matrix.module }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.module }}
+          tags: trenitalia-${{ matrix.module }}:latest
+          outputs: type=docker,dest=/tmp/trenitalia-${{ matrix.module }}.tar
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trenitalia-${{ matrix.module }}
+          path: /tmp/trenitalia-${{ matrix.module }}.tar
+
+  publish:
+    name: Publish Docker images
+    needs: build
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, 'skip_build') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get short SHA
+        id: get_sha
+        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push bot image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./bot
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/bot:${{ steps.get_sha.outputs.SHORT_SHA }}
+            ghcr.io/${{ github.repository }}/bot:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/web:${{ steps.get_sha.outputs.SHORT_SHA }}
+            ghcr.io/${{ github.repository }}/web:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
